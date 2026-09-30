@@ -35,10 +35,11 @@ Give it the URLs, the repo path, and ideally the worst thing a wrong click can d
 
 ```
 cls-audit/
-  SKILL.md                        # the audit, phases 0-6
+  SKILL.md                        # the audit, phases 0-6 (3b covers no-source targets)
   references/
     hazard-patterns.md            # 12 hazard patterns: mechanism, what to grep, resulting wrong-click
     mitigation-patterns.md        # what good looks like, and what does not work
+    black-box-techniques.md       # auditing a site you cannot read the source of
   templates/
     audit-note.md                 # report skeleton
 ```
@@ -52,6 +53,7 @@ cls-audit/
 5. **The "what to look out for" line is the most valuable part of a finding.** A reader watching the wrong signal concludes there is no bug. Tell them the actual tell.
 6. **Throttle in every repro.** Slow 4G widens the window, it does not create the bug. Without it these are unreproducible on a developer machine, which is exactly why they ship.
 7. **Search for the mitigations too.** The fix with in-repo precedent is the one that ships.
+8. **Report negative results.** What you tested and found clean is coverage information; without it a reader cannot tell an untested surface from a safe one.
 
 ## License
 

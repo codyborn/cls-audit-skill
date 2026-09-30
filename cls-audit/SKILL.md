@@ -31,8 +31,9 @@ Use Chrome DevTools, or the chrome-devtools MCP if available.
    - **Start time**, which matters more than score for misclick risk. A shift at 200ms is harmless because nothing is readable yet. A shift at 2s lands after the user has targeted something.
    - **Impacted elements**. If the impacted element is a *container* rather than the thing that grew, something above it resolved late and displaced everything below.
 4. Trace **several pages, not one.** Expect wide variance: a tuned primary flow can score 0.00 while a list page on the same domain scores 0.09. The variance is the finding.
-5. Record **INP** and **LCP** while you are there. INP above 200ms produces the same felt complaint ("my click didn't register") through a different mechanism, and a slow LCP widens the window during which things can still move.
-6. Note where CrUX has **no field data**. Those pages are measured only by your single lab run, and if the cause is a late request, real users see worse.
+5. **Trace the same page more than once, cold.** Run-to-run spread on one URL can be 3x (0.47 cold versus 0.17 warm has been observed on a single page), because which requests are late changes with cache state. Report the range and the cache state, never a single number as though it were the page's score. Force a cold load between runs.
+6. Record **INP** and **LCP** while you are there. INP above 200ms produces the same felt complaint ("my click didn't register") through a different mechanism, and a slow LCP widens the window during which things can still move.
+7. Note where CrUX has **no field data**. Those pages are measured only by your single lab run, and if the cause is a late request, real users see worse.
 
 Report the numbers in a table. Do not stop here.
 
@@ -62,6 +63,20 @@ Work the hazard taxonomy in `references/hazard-patterns.md`. The highest-yield p
 
 Search for the **mitigations** too, with equal effort. What a codebase already does right tells you which fix to propose (there is usually an in-repo precedent) and keeps the report from reading as an indiscriminate attack. See `references/mitigation-patterns.md`.
 
+## Phase 3b: no source access
+
+Auditing a third-party site, or a product whose code you cannot read, does not end the audit at Phase 1. It changes the instrument. Full recipes in `references/black-box-techniques.md`; the essentials:
+
+1. **Install a `layout-shift` PerformanceObserver before page scripts run.** This is the highest-value black-box tool and it does things the trace cannot:
+   - It reports **every** shift with its own score and timestamp, including ones the CLS session-window accounting drops.
+   - It exposes `hadRecentInput`, so you can *count what CLS excludes by design* rather than inferring it.
+   - Its `sources[].node` gives you live DOM nodes, so you can read `data-testid` and component attributes. **On a minified site this is how you recover component identity**: a class of `UDd6VhjOTDGlgJq8l5Fk` tells you nothing, while the same node's `component-shelf` test-id names the culprit.
+2. **Drive the blind spots deliberately**, reading the observer after each: scroll to trigger lazy content, open the menus and pickers a user would open, switch tabs and filters. Note that programmatic scrolling does **not** set `hadRecentInput` (only discrete input like click or keypress does), so dispatch real events if you want to exercise that path.
+3. **Diff DOM snapshots over time** where the observer is not enough: capture the ordered list of row identities shortly after paint and again a couple of seconds later. A changed order is a re-sort, a changed length is an insertion, and the same length in a different order is the dangerous case.
+4. **Infer the pattern, then say it is an inference.** From outside you can establish *that* sections displace a container and *when*. You cannot establish which query was late. Write the mechanism as observed behaviour, and mark the cause as hypothesis.
+
+A black-box audit can reach findings and repro steps. It cannot reach file:line or propose the in-repo fix, so say so in the report rather than padding the gap.
+
 ## Phase 4: verify before reporting
 
 **Read every load-bearing claim in the source yourself**, especially if subagents did the sweeping. Quote the actual line. Two failure modes to catch:
@@ -89,6 +104,7 @@ Use `templates/audit-note.md`. Non-negotiable parts:
 - **Per-finding: file:line, the mechanism in the code's own terms, numbered repro steps, and a "what to look out for" line.** The last one matters most and is most often skipped. A reader watching for the wrong signal concludes there is no bug. Tell them the actual tell: "watch the section headers, not the rows", "watch the bottom of the list, not the top", "the button drifts rather than jumps".
 - **Throttling in the repro steps.** Slow 4G widens the window; it does not create the bug. Without it most of these are unreproducible on a developer machine, which is exactly why they ship.
 - **What the codebase does well**, as its own section.
+- **Negative results, explicitly.** Say what you tested and found clean, not just what you found broken. "Scrolled the home feed through six viewports and the observer recorded zero new shifts" is coverage information the reader needs to size the rest of the report. Without it they cannot tell an untested surface from a safe one.
 - **The blind-spot section from Phase 2.** If the team is using CLS as their guard, they need to know what it cannot see.
 - **A single priority-ordered list** at the end, spanning platforms, that someone can turn into tickets.
 
